@@ -1,0 +1,15 @@
+server:
+  port: 8080
+spring:
+  application:
+    name: "auth-service"
+  devtools:
+    add-properties: false
+  h2:
+    console:
+      enabled: true
+      path: "/h2"
+  profiles:
+    include: null
+
+
