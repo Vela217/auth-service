@@ -1,6 +1,6 @@
 package co.com.auth.api;
 
-import co.com.auth.api.dto.UserDto;
+import co.com.auth.api.dto.CreateUserDto;
 import co.com.auth.api.dto.ResponseDTO;
 import co.com.auth.api.exception.DtoValidator;
 import co.com.auth.api.mapper.UserMapper;
@@ -32,7 +32,7 @@ public class Handler {
     private final UserMapper userMapper;
     private final DtoValidator dtoValidator;
 
-    @Operation(summary = "Registrar usuario", description = "Crea un usuario validando campos requeridos y unicidad de email.", requestBody = @RequestBody(required = true, content = @Content(mediaType = "application/json", schema = @Schema(implementation = UserDto.class))), responses = {
+    @Operation(summary = "Registrar usuario", description = "Crea un usuario validando campos requeridos y unicidad de email.", requestBody = @RequestBody(required = true, content = @Content(mediaType = "application/json", schema = @Schema(implementation = CreateUserDto.class))), responses = {
             @ApiResponse(responseCode = "201", description = "Creado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
             @ApiResponse(responseCode = "400", description = "Error en los datos de entrada", content = @Content(mediaType = "application/json", schema = @Schema(example = """
                     {"success":false,"message":"Validation failed","code":400,
@@ -42,15 +42,21 @@ public class Handler {
             @ApiResponse(responseCode = "500", description = "Error inesperado")
     })
     public Mono<ServerResponse> listenSaveUser(ServerRequest req) {
-        return req.bodyToMono(UserDto.class)
+        return req.bodyToMono(CreateUserDto.class)
                 .flatMap(dtoValidator::validate) // 400 si falla el DTO
                 .map(userMapper::toEntity)
-                .flatMap(u -> userUseCase.registerUser(u).as(tx::transactional)) // 409 si email en uso
+                .doOnNext(u -> log.info("🚀 User antes de registerUser: {}", u))
+                .flatMap(u -> userUseCase.registerUser(u).as(tx::transactional))
+                .doOnNext(u -> log.info("🚀 User despues: {}", u))
                 .map(userMapper::toDto)
                 .flatMap(userResp -> ServerResponse.status(HttpStatus.CREATED)
                         .contentType(MediaType.APPLICATION_JSON)
                         .bodyValue(ResponseDTO.builder()
-                                .success(true).message("Usuario creado con exito")
-                                .code(HttpStatus.CREATED.value()).response(userResp).build()));
+                                .success(true)
+                                .message("Usuario creado con exito")
+                                .code(HttpStatus.CREATED.value())
+                                .response(userResp)
+                                .build()));
+
     }
 }
