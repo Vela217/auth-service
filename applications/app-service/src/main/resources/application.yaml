@@ -11,5 +11,14 @@ spring:
       path: "/h2"
   profiles:
     include: null
+adapters:
+  r2dbc:
+    host: "localhost"
+    port: 5432
+    database: "authentication"
+    schema: "public"
+    username: "postgres"
+    password: "1189"
+
 
 
