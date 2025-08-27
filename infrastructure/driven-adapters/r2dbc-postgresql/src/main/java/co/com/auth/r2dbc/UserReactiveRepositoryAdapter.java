@@ -1,5 +1,6 @@
 package co.com.auth.r2dbc;
 
+import co.com.auth.model.role.Role;
 import co.com.auth.model.user.User;
 import co.com.auth.model.user.gateways.UserRepository;
 import co.com.auth.r2dbc.entity.UserEntity;
@@ -23,9 +24,25 @@ public class UserReactiveRepositoryAdapter extends ReactiveAdapterOperations<
         super(repository, mapper, d -> mapper.map(d, User.class));
     }
 
+
     @Override
     public Mono<Boolean> existsByEmail(String email) {
         return repository.existsByEmail(email);
     }
 
+    @Override
+    public Mono<User> save(User user) {
+        UserEntity entity = mapper.map(user, UserEntity.class);
+        Long roleId = user != null && user.getRol() != null ? user.getRol().getIdRol() : null;
+        entity.setRoleId(roleId);
+
+        return repository.save(entity)
+                .map(saved -> {
+                    User mapped = mapper.map(saved, User.class);
+                    if (saved.getRoleId() != null) {
+                        mapped.setRol(Role.builder().idRol(saved.getRoleId()).build());
+                    }
+                    return mapped;
+                });
+    }
 }
