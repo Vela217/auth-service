@@ -41,7 +41,7 @@ public class RouterRest {
                             responses = {
                                     @ApiResponse(
                                             responseCode = "201",
-                                            description = "Creado",
+                                            description = "Usuario creado con exito",
                                             content = @Content(
                                                     mediaType = "application/json",
                                                     schema = @Schema(example = """
@@ -81,9 +81,7 @@ public class RouterRest {
                                       {"message": "no debe ser nulo", "field": "name"},
                                       {"message": "numberDocument is required", "field": "numberDocument"},
                                       {"message": "lastName is required", "field": "lastName"}
-                                    ],
-                                    "timestamp": "2025-08-27T16:42:43.662353300-05:00",
-                                    "path": "/api/v1/usuarios"
+                                    ]
                                   }
                                 }
                             """)
@@ -99,10 +97,7 @@ public class RouterRest {
                                   "success": false,
                                   "message": "El correo ya esta en uso",
                                   "code": 409,
-                                  "response": {
-                                    "timestamp": "2025-08-27T16:41:58.061002600-05:00",
-                                    "path": "/api/v1/usuarios"
-                                  }
+                                  "response": null
                                 }
                             """)
                                             )
@@ -115,12 +110,9 @@ public class RouterRest {
                                                     schema = @Schema(example = """
                                 {
                                   "success": false,
-                                  "message": "An unexpected error occurred.",
+                                  "message": "An unexpected error occurred",
                                   "code": 500,
-                                  "response": {
-                                    "timestamp": "2025-08-27T16:53:08.920945900-05:00",
-                                    "path": "/api/v1/usuarios"
-                                  }
+                                  "response": null
                                 }
                             """)
                                             )
