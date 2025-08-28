@@ -12,6 +12,8 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Schema(description = "DTO genérico para respuestas de la API")
 public class ResponseDTO<T> {
+    @Schema(description = "Código de estado HTTP", example = "201")
+    private Integer statusCode;
 
     @Schema(description = "Indica si la operación fue exitosa", example = "true")
     private Boolean success;
@@ -19,10 +21,7 @@ public class ResponseDTO<T> {
     @Schema(description = "Mensaje descriptivo de la respuesta", example = "Usuario creado con éxito")
     private String message;
 
-    @Schema(description = "Código de estado HTTP", example = "201")
-    private Integer code;
-
     @Schema(description = "Datos de respuesta de la operación")
-    private T response;
+    private T data;
 
 }
