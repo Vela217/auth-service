@@ -49,7 +49,7 @@ public class GlobalExceptionHandler implements ErrorWebExceptionHandler {
                         .success(false).message("Invalid request payload").statusCode(status.value())
                         .data(Map.of("errors", errors))
                         .build();
-                log.warn("400 ConstraintViolation: {}", errors);
+                log.warn("400: {}", errors);
             }
 
             else if (ex instanceof ServerWebInputException || ex instanceof DecodingException) {
@@ -76,12 +76,12 @@ public class GlobalExceptionHandler implements ErrorWebExceptionHandler {
             }
 
             else if (ex instanceof IllegalArgumentException iae) {
-                status = HttpStatus.BAD_REQUEST;
+                status = HttpStatus.NOT_FOUND;
                 body = ResponseDTO.builder()
                         .success(false).message(iae.getMessage()).statusCode(status.value())
                         .data(null)
                         .build();
-                log.warn("400 Illegal argument: {}", iae.getMessage());
+                log.warn("404 NOT_FOUND: {}", iae.getMessage());
             }
 
             else if (ex instanceof DuplicateKeyException
