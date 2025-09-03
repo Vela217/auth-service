@@ -7,6 +7,7 @@ import org.springframework.web.reactive.function.server.RequestPredicates;
 import org.springframework.web.reactive.function.server.RouterFunction;
 import org.springframework.web.reactive.function.server.ServerResponse;
 
+import static org.springframework.web.reactive.function.server.RequestPredicates.GET;
 import static org.springframework.web.reactive.function.server.RequestPredicates.POST;
 import static org.springframework.web.reactive.function.server.RouterFunctions.route;
 
@@ -126,7 +127,8 @@ public class RouterRest {
                 POST("/api/v1/usuarios")
                         .and(RequestPredicates.accept(org.springframework.http.MediaType.APPLICATION_JSON)),
                 handler::listenSaveUser
-        );
+
+        ).andRoute(GET("/api/v1/usuarios/{document}"), handler::getByDocument);
     }
 }
 
