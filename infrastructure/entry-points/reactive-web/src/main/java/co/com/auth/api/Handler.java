@@ -6,6 +6,11 @@ import co.com.auth.api.exception.DtoValidator;
 import co.com.auth.api.mapper.UserMapper;
 import co.com.auth.usecase.getuser.GetUserUseCase;
 import co.com.auth.usecase.user.CreateUseCase;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.parameters.RequestBody;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +34,15 @@ public class Handler {
         private final UserMapper userMapper;
         private final DtoValidator dtoValidator;
 
+        @Operation(summary = "Registrar usuario", description = "Crea un usuario validando campos requeridos y unicidad de email.", requestBody = @RequestBody(required = true, content = @Content(mediaType = "application/json", schema = @Schema(implementation = CreateUserDto.class))), responses = {
+                @ApiResponse(responseCode = "201", description = "Usuario creado con exito", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+                @ApiResponse(responseCode = "400", description = "Error en los datos de entrada", content = @Content(mediaType = "application/json", schema = @Schema(example = """
+                    {"success":false,"message":"Validation failed","code":400,
+                     "errors":[{"field":"name","message":"name is required"}]}"""))),
+                @ApiResponse(responseCode = "409", description = "Conflicto email en uso", content = @Content(mediaType = "application/json", schema = @Schema(example = """
+                    {"success":false,"message":"Email en uso en ","code":409}"""))),
+                @ApiResponse(responseCode = "500", description = "Ocurrioun error inesperado")
+        })
         public Mono<ServerResponse> listenSaveUser(ServerRequest req) {
                 return req.bodyToMono(CreateUserDto.class)
                                 .doOnNext(dto -> log.info("CreateUserDto recibido: {}", dto))

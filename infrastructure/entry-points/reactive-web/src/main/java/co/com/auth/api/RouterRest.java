@@ -1,6 +1,8 @@
 package co.com.auth.api;
 
 import co.com.auth.api.dto.CreateUserDto;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.reactive.function.server.RequestPredicates;
@@ -116,6 +118,63 @@ public class RouterRest {
                                   "response": null
                                 }
                             """)
+
+                                            )
+                                    )
+                            }
+                    )
+            ),
+            @RouterOperation(
+                    path = "/api/v1/usuarios/{document}",
+                    method = RequestMethod.GET,
+                    beanClass = Handler.class,
+                    beanMethod = "getByDocument",
+                    operation = @Operation(
+                            operationId = "consultarUsuarioPorDocumento",
+                            summary = "Consultar usuario por documento",
+                            parameters = {
+                                    @Parameter(
+                                            name = "document",
+                                            in = ParameterIn.PATH,      // 👈 importante: PATH, no QUERY
+                                            required = true,
+                                            description = "Número de documento del usuario",
+                                            schema = @Schema(type = "string", example = "123456789")
+                                    )
+                            },
+                            responses = {
+                                    @ApiResponse(
+                                            responseCode = "200",
+                                            description = "Usuario encontrado",
+                                            content = @Content(
+                                                    mediaType = "application/json",
+                                                    schema = @Schema(example = """
+                                                    {
+                                                      "success": true,
+                                                      "message": "Consulta exitosa",
+                                                      "code": 200,
+                                                      "response": {
+                                                        "userId": "5ae98718-9a56-45d5-b12b-9a2b72318264",
+                                                        "numberDocument": "12345678",
+                                                        "name": "Juan",
+                                                        "lastName": "Vela"
+                                                      }
+                                                    }
+                                                    """)
+                                            )
+                                    ),
+                                    @ApiResponse(
+                                            responseCode = "404",
+                                            description = "Usuario no encontrado",
+                                            content = @Content(
+                                                    mediaType = "application/json",
+                                                    schema = @Schema(example = """
+                                                    {
+                                                      "success": false,
+                                                      "message": "Usuario no encontrado",
+                                                      "code": 404,
+                                                      "response": null
+                                                    }
+                                                    """)
                                             )
                                     )
                             }
