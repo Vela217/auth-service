@@ -31,6 +31,11 @@ public class UserReactiveRepositoryAdapter extends ReactiveAdapterOperations<
     }
 
     @Override
+    public Mono<User> findByNumberDocument(String number) {
+        return repository.findByNumberDocument(number);
+    }
+
+    @Override
     public Mono<User> save(User user) {
         UserEntity entity = mapper.map(user, UserEntity.class);
         Long roleId = user != null && user.getRol() != null ? user.getRol().getIdRol() : null;
