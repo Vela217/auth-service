@@ -1,139 +1,151 @@
 package co.com.auth.api.exception;
 
 import co.com.auth.api.dto.ResponseDTO;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.ConstraintViolationException;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.log4j.Log4j2;
-import org.springframework.boot.web.reactive.error.ErrorWebExceptionHandler;
-import org.springframework.core.annotation.Order;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.codec.DecodingException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
-import org.springframework.stereotype.Component;
-import org.springframework.web.server.*;
-import reactor.core.publisher.Mono;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.server.reactive.ServerHttpRequest;
+import org.springframework.web.bind.annotation.ControllerAdvice;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.support.WebExchangeBindException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.server.ServerWebInputException;
 
-import java.util.Map;
+import java.time.OffsetDateTime;
+import java.util.*;
 import java.util.stream.Collectors;
 
-@Component
-@Order(-2)
-@RequiredArgsConstructor
-@Log4j2
-public class GlobalExceptionHandler implements ErrorWebExceptionHandler {
+@Slf4j
+@ControllerAdvice
+public class GlobalExceptionHandler {
 
-    private final ObjectMapper objectMapper;
+    // ========= VALIDACIONES =========
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ResponseDTO<Object>> handleConstraintViolation(
+            ConstraintViolationException ex, ServerHttpRequest req) {
 
-    @Override
-    public Mono<Void> handle(ServerWebExchange exchange, Throwable ex) {
-        var res = exchange.getResponse();
-        if (res.isCommitted()) return Mono.error(ex);
+        var errors = ex.getConstraintViolations().stream()
+                .map(v -> Map.of("field", v.getPropertyPath().toString(), "message", v.getMessage()))
+                .collect(Collectors.toList());
 
-        HttpStatus status;
-        ResponseDTO<Object> body;
+        log.warn("❌ ConstraintViolation en {} -> {}", req.getPath(), errors);
+        return build(HttpStatus.BAD_REQUEST, "Validation failed", Map.of("errors", errors), req);
+    }
 
-        // Datos comunes
-        String correlationId = exchange.getRequest().getHeaders().getFirst("X-Correlation-Id");
+    @ExceptionHandler(WebExchangeBindException.class)
+    public ResponseEntity<ResponseDTO<Object>> handleBindException(
+            WebExchangeBindException ex, ServerHttpRequest req) {
 
-        try {
+        var errors = ex.getFieldErrors().stream()
+                .map(fe -> Map.of("field", fe.getField(),
+                        "message", Optional.ofNullable(fe.getDefaultMessage()).orElse("Invalid value")))
+                .collect(Collectors.toList());
 
+        log.warn("❌ BindException en {} -> {}", req.getPath(), errors);
+        return build(HttpStatus.BAD_REQUEST, "Validation failed", Map.of("errors", errors), req);
+    }
 
-            if (ex instanceof ConstraintViolationException cve) {
-                status = HttpStatus.BAD_REQUEST;
-                var errors = cve.getConstraintViolations().stream()
-                        .map(v -> Map.of("field", v.getPropertyPath().toString(), "message", v.getMessage()))
-                        .collect(Collectors.toList());
-                body = ResponseDTO.builder()
-                        .success(false).message("Invalid request payload").statusCode(status.value())
-                        .data(Map.of("errors", errors))
-                        .build();
-                log.warn("400: {}", errors);
-            }
+    // ========= PAYLOAD / INPUT =========
+    @ExceptionHandler({ ServerWebInputException.class, DecodingException.class })
+    public ResponseEntity<ResponseDTO<Object>> handleBadPayload(Exception ex, ServerHttpRequest req) {
+        String detail = (ex instanceof ServerWebInputException swe && swe.getReason() != null)
+                ? swe.getReason()
+                : ex.getMessage();
 
-            else if (ex instanceof ServerWebInputException || ex instanceof DecodingException) {
-                status = HttpStatus.BAD_REQUEST;
+        log.warn("🧩 Payload inválido en {} -> {}", req.getPath(), safeDetail(detail));
+        return build(HttpStatus.BAD_REQUEST, "Invalid request payload", Map.of("detail", safeDetail(detail)), req);
+    }
 
-                String reason = ex.getMessage();
-                if (ex instanceof ServerWebInputException swe && swe.getReason() != null) {
-                    reason = swe.getReason();
-                }
-                body = ResponseDTO.builder()
-                        .success(false).message("Invalid request payload").statusCode(status.value())
-                        .data(Map.of(
-                                "detail", safeDetail(reason))).build();
-                log.warn("400 Bad payload: {}", reason);
-            }
+    // ========= CONFLICTOS / DUPLICADOS =========
+    @ExceptionHandler(DuplicateKeyException.class)
+    public ResponseEntity<ResponseDTO<Object>> handleDuplicate(DuplicateKeyException ex, ServerHttpRequest req) {
+        log.warn("⚠️ Duplicate key en {} -> {}", req.getPath(), safeDetail(ex.getMessage()));
+        return build(HttpStatus.CONFLICT, "Duplicate key / unique constraint violated", null, req);
+    }
 
-            else if (ex instanceof IllegalStateException ise) {
-                status = HttpStatus.CONFLICT;
-                body = ResponseDTO.builder()
-                        .success(false).message(ise.getMessage()).statusCode(status.value())
-                        .data(null)
-                        .build();
-                log.warn("409 Conflict: {}", ise.getMessage());
-            }
+    // ========= NOT FOUND / CONFLICT por reglas previas =========
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ResponseDTO<Object>> handleIAE(IllegalArgumentException ex, ServerHttpRequest req) {
+        log.warn("🔎 404 NOT_FOUND en {} -> {}", req.getPath(), safeDetail(ex.getMessage()));
+        return build(HttpStatus.NOT_FOUND, ex.getMessage(), null, req);
+    }
 
-            else if (ex instanceof IllegalArgumentException iae) {
-                status = HttpStatus.NOT_FOUND;
-                body = ResponseDTO.builder()
-                        .success(false).message(iae.getMessage()).statusCode(status.value())
-                        .data(null)
-                        .build();
-                log.warn("404 NOT_FOUND: {}", iae.getMessage());
-            }
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ResponseDTO<Object>> handleISE(IllegalStateException ex, ServerHttpRequest req) {
+        log.warn("🚧 409 CONFLICT en {} -> {}", req.getPath(), safeDetail(ex.getMessage()));
+        return build(HttpStatus.CONFLICT, ex.getMessage(), null, req);
+    }
 
-            else if (ex instanceof DuplicateKeyException
-                    || ex.getClass().getName().contains("R2dbcDataIntegrityViolationException")) {
-                status = HttpStatus.CONFLICT;
-                body = ResponseDTO.builder()
-                        .success(false).message("Duplicate key / unique constraint violated number_document").statusCode(status.value())
-                        .data(null)
-                        .build();
-                log.warn("409 Duplicate key: {}", ex.getMessage());
-            }
+    // ========= ResponseStatusException =========
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ResponseDTO<Object>> handleRSE(ResponseStatusException ex, ServerHttpRequest req) {
+        HttpStatus status = HttpStatus.resolve(ex.getStatusCode().value());
+        if (status == null)
+            status = HttpStatus.INTERNAL_SERVER_ERROR;
+        String msg = Optional.ofNullable(ex.getReason()).orElse(status.getReasonPhrase());
 
-            else if (ex instanceof ResponseStatusException rse) {
-                status = (HttpStatus) rse.getStatusCode();
-                body = ResponseDTO.builder()
-                        .success(false)
-                        .message(rse.getReason() != null ? rse.getReason() : status.getReasonPhrase())
-                        .statusCode(status.value())
-                        .data(null)
-                        .build();
-                log.warn("{} ResponseStatusException: {}", status.value(), rse.getReason());
-            }
+        log.warn("📣 {} ResponseStatusException en {} -> {}", status.value(), req.getPath(), safeDetail(msg));
+        return build(status, msg, null, req);
+    }
 
-            else {
-                status = HttpStatus.INTERNAL_SERVER_ERROR;
-                body = ResponseDTO.builder()
-                        .success(false).message("An unexpected error occurred").statusCode(status.value())
-                        .data(null)
-                        .build();
-                log.error("500 Unexpected error", ex);
-            }
+    // ========= WebClient (errores HTTP remotos) =========
+    @ExceptionHandler(WebClientResponseException.class)
+    public ResponseEntity<ResponseDTO<Object>> handleWebClient(WebClientResponseException ex, ServerHttpRequest req) {
+        HttpStatus status = HttpStatus.resolve(ex.getRawStatusCode());
+        if (status == null)
+            status = HttpStatus.INTERNAL_SERVER_ERROR;
 
-            res.setStatusCode(status);
-            res.getHeaders().setContentType(MediaType.APPLICATION_JSON);
-            if (correlationId != null) {
-                res.getHeaders().set("X-Correlation-Id", correlationId);
-            }
+        String body = safeDetail(ex.getResponseBodyAsString());
+        log.error("🌐 Error HTTP remoto {} en {} -> body: {}", status.value(), req.getPath(), body);
+        return build(status, "Remote HTTP error", Map.of("detail", body), req);
+    }
 
-            byte[] bytes = objectMapper.writeValueAsBytes(body);
-            return res.writeWith(Mono.just(res.bufferFactory().wrap(bytes)));
-
-        } catch (Exception ser) {
-            log.error("Error serializando respuesta", ser);
-            res.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR);
-            return res.setComplete();
+    // ========= Fallback =========
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ResponseDTO<Object>> handleGeneral(Exception ex, ServerHttpRequest req) {
+        // R2DBC constraint violations (sin dependencia directa)
+        if (ex.getClass().getName().contains("R2dbcDataIntegrityViolationException")) {
+            log.warn("⚠️ Duplicate key (R2DBC) en {} -> {}", req.getPath(), safeDetail(ex.getMessage()));
+            return build(HttpStatus.CONFLICT, "Duplicate key / unique constraint violated", null, req);
         }
+
+        log.error("🔥 500 Unexpected error en {} -> {}", req.getPath(), safeDetail(ex.getMessage()), ex);
+        return build(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected error", null, req);
+    }
+
+    // ========= Helpers =========
+    private ResponseEntity<ResponseDTO<Object>> build(HttpStatus status, String message, Object details,
+            ServerHttpRequest req) {
+        String correlationId = Optional.ofNullable(req.getHeaders().getFirst("X-Correlation-Id"))
+                .orElse(UUID.randomUUID().toString());
+
+        var meta = new LinkedHashMap<String, Object>();
+        meta.put("path", req.getPath().value());
+        meta.put("timestamp", OffsetDateTime.now().toString());
+        meta.put("correlationId", correlationId);
+        if (details != null)
+            meta.put("details", details);
+
+        var body = ResponseDTO.builder()
+                .success(false)
+                .message(message)
+                .statusCode(status.value())
+                .data(meta)
+                .build();
+
+        return ResponseEntity.status(status)
+                .header("X-Correlation-Id", correlationId)
+                .body(body);
     }
 
     private String safeDetail(String raw) {
-        if (raw == null) return null;
+        if (raw == null)
+            return null;
         var s = raw.replaceAll("\\s+", " ").trim();
         return s.length() > 300 ? s.substring(0, 300) + "…" : s;
     }
 }
-
