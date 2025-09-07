@@ -1,4 +1,4 @@
-package co.com.auth.model.secutity.gateways;
+package co.com.auth.model.security.gateways;
 
 import reactor.core.publisher.Mono;
 

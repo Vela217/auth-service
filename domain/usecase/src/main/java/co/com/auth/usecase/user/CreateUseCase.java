@@ -1,6 +1,6 @@
 package co.com.auth.usecase.user;
 
-import co.com.auth.model.passwordencoder.gateways.PasswordEncoderGateway;
+import co.com.auth.model.security.gateways.PasswordEncoderGateway;
 import co.com.auth.model.role.gateways.RoleRepository;
 import co.com.auth.model.user.User;
 import co.com.auth.model.user.gateways.UserRepository;
