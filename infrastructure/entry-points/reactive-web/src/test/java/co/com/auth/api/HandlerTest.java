@@ -1,11 +1,14 @@
 package co.com.auth.api;
 
 import co.com.auth.api.dto.CreateUserDto;
+import co.com.auth.api.dto.LoginRequestDto;
 import co.com.auth.api.exception.DtoValidator;
 import co.com.auth.api.mapper.UserMapper;
 import co.com.auth.model.role.Role;
+import co.com.auth.model.security.AuthToken;
 import co.com.auth.model.user.User;
 import co.com.auth.usecase.getuser.GetUserUseCase;
+import co.com.auth.usecase.login.LoginUseCase;
 import co.com.auth.usecase.user.CreateUseCase;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -24,6 +27,7 @@ import org.springframework.web.reactive.function.server.ServerResponse;
 import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -38,6 +42,8 @@ class HandlerTest {
     private CreateUseCase createUserUseCase;
     @Mock
     GetUserUseCase getUserUseCase;
+    @Mock
+    LoginUseCase loginUseCase;
     @Mock
     UserMapper userMapper;
     @Mock
@@ -59,12 +65,13 @@ class HandlerTest {
                 .thenAnswer(inv -> inv.getArgument(0));
 
 
-        handler = new Handler(createUserUseCase, getUserUseCase, tx, userMapper, dtoValidator);
+        handler = new Handler(createUserUseCase ,getUserUseCase, loginUseCase, tx, userMapper, dtoValidator);
 
         // Router mínimo para testear el Handler (functional style)
         RouterFunction<ServerResponse> router = RouterFunctions.route()
                 .POST("/users", handler::listenSaveUser)
                 .GET("/users/{document}", handler::getByDocument)
+                .POST("/auth/login", handler::login)
                 .build();
 
         client = WebTestClient.bindToRouterFunction(router).configureClient().build();
@@ -166,5 +173,42 @@ class HandlerTest {
         verify(tx).transactional(any(Mono.class));
         verifyNoMoreInteractions(getUserUseCase, userMapper);
     }
+
+    @Test
+    @DisplayName("login -> 200 OK con ResponseDTO esperado")
+    void login_ok() {
+        var email = "user@test.com";
+        var rawPassword = "123456";
+        var epoch = 1_725_000_000L;
+
+        when(dtoValidator.validate(any(LoginRequestDto.class)))
+                .thenAnswer(inv -> Mono.just((LoginRequestDto) inv.getArgument(0)));
+
+        AuthToken token = mock(AuthToken.class);
+        when(token.getToken()).thenReturn("header.payload.signature");
+        when(token.getExpiresAt()).thenReturn(Instant.ofEpochSecond(epoch));
+
+        when(loginUseCase.login(email, rawPassword)).thenReturn(Mono.just(token));
+
+        client.post()
+                .uri("/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(new LoginRequestDto(email, rawPassword))
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().contentType(MediaType.APPLICATION_JSON)
+                .expectBody()
+                .jsonPath("$.success").isEqualTo(true)
+                .jsonPath("$.message").isEqualTo("Usuario logueado exitosamente")
+                .jsonPath("$.statusCode").isEqualTo(200)
+                .jsonPath("$.data.accessToken").isEqualTo("header.payload.signature")
+                .jsonPath("$.data.expiresAtEpochSeconds").isEqualTo((int) epoch);
+
+        verify(dtoValidator).validate(any(LoginRequestDto.class));
+        verify(loginUseCase).login(email, rawPassword);
+        verify(tx).transactional(any(Mono.class)); // ahora sí se usa en login
+        verifyNoMoreInteractions(loginUseCase, dtoValidator, tx);
+    }
+
 
 }

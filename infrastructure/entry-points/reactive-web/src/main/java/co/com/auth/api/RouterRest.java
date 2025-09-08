@@ -1,6 +1,8 @@
 package co.com.auth.api;
 
 import co.com.auth.api.dto.CreateUserDto;
+import co.com.auth.api.dto.LoginRequestDto;
+import co.com.auth.api.dto.ResponseDTO;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import org.springframework.context.annotation.Bean;
@@ -179,15 +181,94 @@ public class RouterRest {
                                     )
                             }
                     )
+            ),
+            // -------- Login --------
+            @RouterOperation(
+                    path = "/api/v1/login",
+                    method = RequestMethod.POST,
+                    beanClass = Handler.class,
+                    beanMethod = "login",
+                    operation = @Operation(
+                            operationId = "login",
+                            summary = "Autenticación de usuario (login)",
+                            description = "Valida credenciales y retorna un JWT con fecha de expiración.",
+                            security = {}, // <- esta operación NO requiere autenticación en la documentación
+                            requestBody = @RequestBody(
+                                    required = true,
+                                    content = @Content(mediaType = "application/json",
+                                            schema = @Schema(implementation = LoginRequestDto.class),
+                                            examples = @io.swagger.v3.oas.annotations.media.ExampleObject(
+                                                    value = """
+                                  { "email": "user@test.com", "password": "123456" }
+                                  """
+                                            )
+                                    )
+                            ),
+                            responses = {
+                                    @ApiResponse(responseCode = "200", description = "Login exitoso",
+                                            content = @Content(mediaType = "application/json",
+                                                    schema = @Schema(implementation = ResponseDTO.class),
+                                                    examples = @io.swagger.v3.oas.annotations.media.ExampleObject(
+                                                            value = """
+                                      {
+                                        "success": true,
+                                        "message": "Usuario logueado exitosamente",
+                                        "statusCode": 200,
+                                        "data": {
+                                          "accessToken": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+                                          "expiresAtEpochSeconds": 1725000000
+                                        }
+                                      }
+                                      """
+                                                    ))),
+                                    @ApiResponse(responseCode = "400", description = "Solicitud inválida",
+                                            content = @Content(mediaType = "application/json",
+                                                    schema = @Schema(implementation = ResponseDTO.class),
+                                                    examples = @io.swagger.v3.oas.annotations.media.ExampleObject(
+                                                            value = """
+                                                                    {
+                                                                         "statusCode": 400,
+                                                                         "success": false,
+                                                                         "message": "Validation failed",
+                                                                         "data": {
+                                                                             "path": "/api/v1/login",
+                                                                             "timestamp": "2025-09-07T22:45:12.072294700-05:00",
+                                                                             "correlationId": "df1e16c2-004f-4cca-93ec-1e4c235b41f4",
+                                                                             "details": {
+                                                                                 "errors": [
+                                                                                     {
+                                                                                         "message": "no debe estar vacío",
+                                                                                         "field": "email"
+                                                                                     }
+                                                                                 ]
+                                                                             }
+                                                                         }
+                                                                     }
+                                      """
+                                                    ))),
+                                    @ApiResponse(responseCode = "401", description = "Credenciales inválidas",
+                                            content = @Content(mediaType = "application/json",
+                                                    schema = @Schema(implementation = ResponseDTO.class),
+                                                    examples = @io.swagger.v3.oas.annotations.media.ExampleObject(
+                                                            value = """
+                                      {
+                                        "success": false,
+                                        "message": "Token inválido o no provisto",
+                                        "statusCode": 401,
+                                        "data": null
+                                      }
+                                      """
+                                                    ))),
+                                    @ApiResponse(responseCode = "500", description = "Error inesperado")
+                            }
+                    )
             )
     })
     public RouterFunction<ServerResponse> routerFunction(Handler handler) {
         return route(
-                POST("/api/v1/usuarios")
-                        .and(RequestPredicates.accept(org.springframework.http.MediaType.APPLICATION_JSON)),
-                handler::listenSaveUser
-
-        ).andRoute(GET("/api/v1/usuarios/{document}"), handler::getByDocument);
+                POST("/api/v1/usuarios"),handler::listenSaveUser
+        ).andRoute(GET("/api/v1/usuarios/{document}"), handler::getByDocument).
+                andRoute(POST("/api/v1/login"), handler::login);
     }
 }
 

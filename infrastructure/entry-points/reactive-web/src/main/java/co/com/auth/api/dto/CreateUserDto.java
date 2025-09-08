@@ -27,6 +27,8 @@ public record CreateUserDto(
 
         @Schema(description = "Número de teléfono", example = "+573001234567") String phone,
 
+        @Schema(description = "Contraseña") @NotBlank(message = "La contraseña es requerida") @NotNull String password,
+
         @NotNull
         @Schema(description = "Rol del usuario", example = "1") Long roleId,
 

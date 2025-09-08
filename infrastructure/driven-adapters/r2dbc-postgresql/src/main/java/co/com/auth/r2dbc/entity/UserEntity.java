@@ -24,6 +24,7 @@ public class UserEntity {
     private UUID userId;
     private String numberDocument;
     private String name;
+    private String password;
     private String lastName;
     private LocalDate birthDate;
     private String address;
