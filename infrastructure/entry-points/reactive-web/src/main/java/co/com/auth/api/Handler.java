@@ -1,10 +1,13 @@
 package co.com.auth.api;
 
 import co.com.auth.api.dto.CreateUserDto;
+import co.com.auth.api.dto.LoginRequestDto;
+import co.com.auth.api.dto.LoginResponseDto;
 import co.com.auth.api.dto.ResponseDTO;
 import co.com.auth.api.exception.DtoValidator;
 import co.com.auth.api.mapper.UserMapper;
 import co.com.auth.usecase.getuser.GetUserUseCase;
+import co.com.auth.usecase.login.LoginUseCase;
 import co.com.auth.usecase.user.CreateUseCase;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -30,6 +33,7 @@ public class Handler {
 
         private final CreateUseCase createUserUseCase;
         private final GetUserUseCase getUserUseCase;
+        private final LoginUseCase loginUseCase;
         private final TransactionalOperator tx;
         private final UserMapper userMapper;
         private final DtoValidator dtoValidator;
@@ -75,6 +79,26 @@ public class Handler {
                                                                 .message("Consulta exitosa")
                                                                 .statusCode(HttpStatus.OK.value())
                                                                 .data(dto).build()));
+        }
+
+        public Mono<ServerResponse> login(ServerRequest req){
+
+                return req.bodyToMono(LoginRequestDto.class)
+                        .flatMap(d -> {
+                                log.info("email entrante: {}", d.email());
+                                return dtoValidator.validate(d);
+                        })
+                        .flatMap(d-> loginUseCase.login(d.email(),d.password()).as(tx::transactional))
+                        .map(t-> new LoginResponseDto(t.getToken(), t.getExpiresAt().getEpochSecond()))
+                        .doOnSuccess(t -> log.info("token={} expEpoch={}",
+                                t.accessToken(),  t.expiresAtEpochSeconds()))
+                        .flatMap(dto -> ServerResponse.status(HttpStatus.OK)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .bodyValue(ResponseDTO.builder()
+                                        .success(true)
+                                        .message("Usuario logueado exitosamente")
+                                        .statusCode(HttpStatus.OK.value())
+                                        .data(dto).build()));
         }
 
 }
