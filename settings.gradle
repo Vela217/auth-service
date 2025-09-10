@@ -24,7 +24,3 @@ include ':r2dbc-postgresql'
 project(':r2dbc-postgresql').projectDir = file('./infrastructure/driven-adapters/r2dbc-postgresql')
 include ':reactive-web'
 project(':reactive-web').projectDir = file('./infrastructure/entry-points/reactive-web')
-include ':b-crypt-password-encoder'
-project(':b-crypt-password-encoder').projectDir = file('./infrastructure/driven-adapters/b-crypt-password-encoder')
-include ':security'
-project(':security').projectDir = file('./infrastructure/driven-adapters/security')
